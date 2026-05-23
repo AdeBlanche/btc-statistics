@@ -128,6 +128,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
       <div class="chart-controls" id="cycleControls" style="margin-bottom:0;"></div>
       <div style="display:flex;gap:0.5rem;">
+        <button id="cycleAlignBtn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.35rem 0.9rem;font-size:0.82rem;cursor:pointer;">Align Halvings</button>
         <button id="cycleScaleBtn" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:0.35rem 0.9rem;font-size:0.82rem;cursor:pointer;">Linear Scale</button>
       </div>
     </div>
@@ -380,8 +381,15 @@ function halvingPrice(halvingDate) {
 
 const currentHalvingPrice = halvingPrice(currentCycleHalving);
 
+function halvingDayOffset(halvingDate) {
+  const c4 = new Date('2024-04-20T00:00:00Z');
+  const hDate = new Date(halvingDate + 'T00:00:00Z');
+  const hIn2024 = new Date(Date.UTC(2024, hDate.getUTCMonth(), hDate.getUTCDate()));
+  return Math.round((hIn2024 - c4) / 86400000);
+}
+
 // Build cycle point arrays: [{day, price}] normalized so day-0 = currentHalvingPrice
-function buildCyclePoints(halvingDate) {
+function buildCyclePoints(halvingDate, dayOffset) {
   const startMs = isoToMs(halvingDate);
   const basePrice = halvingPrice(halvingDate);
   if (!basePrice || !currentHalvingPrice) return [];
@@ -391,13 +399,16 @@ function buildCyclePoints(halvingDate) {
     const dayN = Math.round((isoToMs(r.date) - startMs) / 86400000);
     if (dayN < 0) continue;
     if (dayN > CYCLE_DAYS) break;
-    pts.push({ day: dayN, price: r.close * scale });
+    const shiftedDay = dayN + dayOffset;
+    if (shiftedDay < 0 || shiftedDay > CYCLE_DAYS) continue;
+    pts.push({ day: shiftedDay, price: r.close * scale });
   }
   return pts;
 }
 
 let cycleLogScale = true;
 let activeCycleFilter = 'all'; // 'all' | cycle index string
+let cycleAlignMode = 'halving'; // 'halving' | 'calendar'
 
 function drawCycleChart() {
   const canvas = document.getElementById('cycleChart');
@@ -413,7 +424,8 @@ function drawCycleChart() {
 
   // Build cycle objects with points
   const cycles = HALVINGS.map((h, i) => ({
-    ...h, idx: i, pts: buildCyclePoints(h.date),
+    ...h, idx: i,
+    pts: buildCyclePoints(h.date, cycleAlignMode === 'calendar' ? halvingDayOffset(h.date) : 0),
   })).filter(c => c.pts.length > 0);
 
   const visibleCycles = activeCycleFilter === 'all'
@@ -620,6 +632,16 @@ function toggleCycleFilter(idx) {
   activeCycleFilter = activeCycleFilter === idx ? 'all' : idx;
   drawCycleChart();
 }
+
+// Align toggle button
+const alignBtn = document.getElementById('cycleAlignBtn');
+alignBtn.addEventListener('click', () => {
+  cycleAlignMode = cycleAlignMode === 'halving' ? 'calendar' : 'halving';
+  alignBtn.textContent = cycleAlignMode === 'halving' ? 'Align Halvings' : 'Align Calendar';
+  alignBtn.style.background = cycleAlignMode === 'halving' ? 'var(--accent)' : 'var(--border)';
+  alignBtn.style.color = cycleAlignMode === 'halving' ? '#fff' : 'var(--muted)';
+  drawCycleChart();
+});
 
 // Scale toggle button
 const scaleBtn = document.getElementById('cycleScaleBtn');
