@@ -9,7 +9,7 @@ from pathlib import Path
 TICKER = "STRC"
 DATA_FILE = Path("strc_prices.csv")
 HTML_TEMPLATE = Path("strc_stats.html")
-HTML_OUT = Path("strc_stats_out.html")
+HTML_OUT = Path(__file__).parent.parent / "docs" / "strc.html"
 FIELDNAMES = ["date", "open", "high", "low", "close", "volume"]
 
 

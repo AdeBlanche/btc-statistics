@@ -10,7 +10,7 @@ COIN_ID = "bitcoin"
 DATA_FILE = Path("bitcoin_prices.csv")
 HISTORICAL_FILE = Path("btc-historical.csv")
 HTML_TEMPLATE = Path("bitcoin_stats.html")
-HTML_OUT = Path("bitcoin_stats_out.html")
+HTML_OUT = Path(__file__).parent.parent / "docs" / "bitcoin.html"
 FIELDNAMES = ["date", "open", "high", "low", "close", "volume"]
 
 # CoinGecko free public API — no key, max 365 days per call, ~10-15 req/min
