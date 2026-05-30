@@ -5405,7 +5405,8 @@ const CSV_DATA = `date,open,high,low,close,volume
 2026-05-26,77274.4,77274.4,77274.4,77274.4,21579710482
 2026-05-27,75824.06,75824.06,75824.06,75824.06,39159693387
 2026-05-28,74352.7,74352.7,74352.7,74352.7,36456563334
-2026-05-29,73539.84,73539.84,73539.84,73539.84,36274806896`;
+2026-05-29,73539.84,73539.84,73539.84,73539.84,36274806896
+2026-05-30,73382.72,73382.72,73382.72,73382.72,31258287647`;
 
 // ── Parse CSV ─────────────────────────────────────────────────────────────────
 function parseCSV(text) {
@@ -5871,9 +5872,12 @@ function drawCycleChart() {
     const dayCount   = cycle.pts.length > 0 ? cycle.pts[cycle.pts.length - 1].day : 0;
     const isActive   = activeCycleFilter === 'all' || String(cycle.idx) === activeCycleFilter;
     const hp         = halvingPrice(cycle.date);
-    const scaleLabel = isCurrent
-      ? 'day ' + dayCount
-      : 'halving $' + Math.round(hp).toLocaleString() + ' → ×' + (currentHalvingPrice / hp).toFixed(1);
+    const mult = isCurrent ? (latest.close / hp).toFixed(1) : (currentHalvingPrice / hp).toFixed(1);
+    const stat = cycleStats.find(s => s.cycle.date === cycle.date);
+    const dropMult = stat && stat.troughPt ? (stat.troughPt.price / stat.peakPt.price).toFixed(2) : null;
+    const dropStr = dropMult != null ? ' → ×' + dropMult : '';
+    const scaleLabel = 'halving $' + Math.round(hp).toLocaleString() + ' → ×' + mult
+      + dropStr + (isCurrent ? ', day ' + dayCount : '');
     legendHtml += `<span style="display:flex;align-items:center;gap:4px;cursor:pointer;opacity:${isActive?1:0.35};" onclick="toggleCycleFilter('${cycle.idx}')">
       <span style="display:inline-block;width:22px;height:3px;background:${cycle.color};border-radius:2px;"></span>
       <span style="color:${isCurrent?'#e2e8f0':'#8892a4'}">${cycle.label}${isCurrent?' ★':''} <span style="color:var(--muted);font-size:0.72rem;">(${scaleLabel})</span></span>
@@ -5885,7 +5889,7 @@ function drawCycleChart() {
       .toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
     legendHtml += `<span style="display:flex;align-items:center;gap:4px;">
       <span style="display:inline-block;width:22px;height:3px;background:rgba(251,191,36,0.7);border-radius:2px;border:1px dashed rgba(251,191,36,0.8);"></span>
-      <span style="color:#8892a4;">Projected low <span style="color:var(--muted);font-size:0.72rem;">(trend: ${projectedTrough.trendDdPct.toFixed(1)}% drop, day ${projectedTrough.day} ≈ ${projDateStr} → ${fmt(realProjPrice)})</span></span>
+      <span style="color:#8892a4;">Projected low <span style="color:var(--muted);font-size:0.72rem;">(day ${projectedTrough.day} ≈ ${projDateStr} → ×${(1 - projectedTrough.trendDdPct / 100).toFixed(3)})</span></span>
     </span>`;
   }
   legend.innerHTML = legendHtml;
