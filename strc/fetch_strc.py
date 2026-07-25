@@ -26,10 +26,10 @@ def needs_update(existing: dict[str, dict]) -> bool:
         return True
     latest = max(existing.keys())
     today = date.today().isoformat()
-    return latest < today
+    return latest < today or not existing[latest].get("close")
 
 
-def fetch_yahoo(start_ts: int, end_ts: int) -> list[dict]:
+def fetch_yahoo(start_ts: int, end_ts: int, last_close: float | None = None) -> list[dict]:
     url = (
         f"https://query1.finance.yahoo.com/v8/finance/chart/{TICKER}"
         f"?interval=1d&period1={start_ts}&period2={end_ts}&events=history"
@@ -45,23 +45,29 @@ def fetch_yahoo(start_ts: int, end_ts: int) -> list[dict]:
     rows = []
     for i, ts in enumerate(timestamps):
         day = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+        close = round(quotes["close"][i], 4) if quotes["close"][i] is not None else last_close
         rows.append({
             "date": day,
-            "open":   round(quotes["open"][i], 4)   if quotes["open"][i]   is not None else "",
-            "high":   round(quotes["high"][i], 4)   if quotes["high"][i]   is not None else "",
-            "low":    round(quotes["low"][i], 4)    if quotes["low"][i]    is not None else "",
-            "close":  round(quotes["close"][i], 4)  if quotes["close"][i]  is not None else "",
+            "open":   round(quotes["open"][i], 4)   if quotes["open"][i]   is not None else close,
+            "high":   round(quotes["high"][i], 4)   if quotes["high"][i]   is not None else close,
+            "low":    round(quotes["low"][i], 4)    if quotes["low"][i]    is not None else close,
+            "close":  close if close is not None else "",
             "volume": int(quotes["volume"][i])       if quotes["volume"][i] is not None else "",
         })
+        if close is not None:
+            last_close = close
     return rows
 
 
 def save(existing: dict[str, dict], new_rows: list[dict]) -> int:
     added = 0
     for row in new_rows:
-        if row["date"] not in existing:
+        prior = existing.get(row["date"])
+        if prior is None:
             existing[row["date"]] = row
             added += 1
+        elif not prior.get("close") and row.get("close"):
+            existing[row["date"]] = row
 
     sorted_rows = sorted(existing.values(), key=lambda r: r["date"])
     with DATA_FILE.open("w", newline="") as f:
@@ -85,17 +91,27 @@ def main():
     if not needs_update(existing):
         print(f"Already up to date. Latest: {max(existing.keys())}")
     else:
+        last_close = None
         if existing:
             latest = max(existing.keys())
+            incomplete = not existing[latest].get("close")
             start_dt = datetime.fromisoformat(latest).replace(tzinfo=timezone.utc)
-            start_ts = int(start_dt.timestamp()) + 86400
+            start_ts = int(start_dt.timestamp())
+            if not incomplete:
+                start_ts += 86400
+
+            prior_dates = sorted(k for k in existing if k < latest)
+            last_close_str = existing[latest].get("close") or (
+                existing[prior_dates[-1]].get("close") if prior_dates else None
+            )
+            last_close = float(last_close_str) if last_close_str else None
             print(f"Fetching new data from {latest} onwards...")
         else:
             start_ts = 0
             print("Fetching full history...")
 
         end_ts = int(datetime.now(tz=timezone.utc).timestamp()) + 86400
-        rows = fetch_yahoo(start_ts, end_ts)
+        rows = fetch_yahoo(start_ts, end_ts, last_close)
         existing = load_existing()  # reload after save
         added = save(existing, rows)
         existing = load_existing()
